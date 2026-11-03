@@ -1,6 +1,6 @@
 use super::bidi::{even_row, reorder_line};
 use super::grid::{Exclusion, Grid};
-use super::justify::{HYPHENATION_ZONE, hyphen_glyph, shrink_line_spaces, space_room};
+use super::justify::{HYPHENATION_ZONE, distribute_line, hyphen_glyph, shrink_line_spaces, space_room};
 use super::model::{ClKind, Cluster, Line, LineEnd, ParaEnv};
 use super::paragraph::word_widths;
 use super::tabs::{next_tab, pl_text_at, ptab_stop, resolve_tab};
@@ -523,13 +523,23 @@ impl<'e> Breaker<'e> {
         }
         // A line ending in a manual line break is stretched too, unless `doNotExpandShiftReturn` says not to.
         let stretch_end = sc.end == LineEnd::Wrap || (sc.end == LineEnd::LineBreak && self.expand_break);
-        let justify = display.is_none() && ((rp.align == Align::Justify && stretch_end) || rp.align == Align::Distribute);
+        // Distributed stretches every line, the last one too; Thai Distributed the lines Justify does.
+        let stretch = display.is_none()
+            && match rp.align {
+                Align::Justify | Align::ThaiDistribute => stretch_end,
+                Align::Distribute => true,
+                Align::Left | Align::Center | Align::Right => false,
+            };
         // A line that only fits with shrunk spaces is shrunk, the last line of the paragraph too.
         let shrink = display.is_none() && self.shrink_spaces && slack < 0.0 && last_tab.is_none();
         if shrink {
             shrink_line_spaces(pl, &mut sc.xs, c0, c1, content_end, slack);
-        } else if justify && slack > 0.0 {
-            justify_line(pl, &mut sc.xs, (c0, c1, align_from), (content_end, slack), rp.align == Align::Distribute);
+        } else if stretch && slack > 0.0 {
+            if rp.align == Align::Justify {
+                justify_line(pl, &mut sc.xs, (c0, c1, align_from), (content_end, slack));
+            } else {
+                distribute_line(pl, &mut sc.xs, (c0, c1, align_from), content_end, slack);
+            }
         }
     }
 
@@ -662,22 +672,14 @@ fn content_end(pl: &ParaLayout, sc: &Scan, c1: usize) -> f32 {
     content_end
 }
 
-/// Stretch the line to its right edge: its spaces widen by `slack` between them, or all its
-/// clusters by an equal share when `distribute` (or there are no spaces).
-fn justify_line(pl: &ParaLayout, xs: &mut [f32], (c0, c1, align_from): (usize, usize, usize), (content_end, slack): (f32, f32), distribute: bool) {
+/// Stretch the line to its right edge: its spaces widen by `slack` between them. A line with no
+/// spaces stays as it is.
+fn justify_line(pl: &ParaLayout, xs: &mut [f32], (c0, c1, align_from): (usize, usize, usize), (content_end, slack): (f32, f32)) {
     // Spaces inside the content (after the last tab).
     let spaces: Vec<usize> = (align_from..c1)
         .filter(|k| pl.clusters.get(*k).is_some_and(|c| c.kind == ClKind::Space) && xs.get(k - c0).copied().unwrap_or(f32::MAX) < content_end - 0.01)
         .collect();
-    if distribute || spaces.is_empty() {
-        let cnt = (c1 - align_from).saturating_sub(1).max(1) as f32;
-        if distribute {
-            let per = slack / cnt;
-            for (q, v) in xs.iter_mut().enumerate().skip(align_from - c0) {
-                let k = (q + c0 - align_from) as f32;
-                *v += per * k.min(cnt);
-            }
-        }
+    if spaces.is_empty() {
         return;
     }
     let per = slack / spaces.len() as f32;

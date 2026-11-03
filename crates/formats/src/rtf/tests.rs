@@ -1564,23 +1564,23 @@ fn hyperlink_field_targets() {
 
 #[test]
 fn distributed_alignment_round_trips() {
-    let rtf = br"{\rtf1\ansi\pard\qd Distributed\par\pard\qj Justified\par}";
+    let rtf = br"{\rtf1\ansi\pard\qd Distributed\par\pard\qj Justified\par\pard\qt Thai Distributed\par}";
     let flow = parse(rtf).unwrap();
-    let p0 = match &flow.blocks[0] {
-        FBlock::Para(p) => p.align,
-        _ => panic!("expected para"),
-    };
-    let p1 = match &flow.blocks[1] {
-        FBlock::Para(p) => p.align,
-        _ => panic!("expected para"),
-    };
-    assert_eq!(p0, Some(Align::Distribute));
-    assert_eq!(p1, Some(Align::Justify));
+    let aligns: Vec<Option<Align>> = flow
+        .blocks
+        .iter()
+        .map(|b| match b {
+            FBlock::Para(p) => p.align,
+            _ => panic!("expected para"),
+        })
+        .collect();
+    assert_eq!(aligns, [Some(Align::Distribute), Some(Align::Justify), Some(Align::ThaiDistribute)]);
 
     let doc = import(rtf).unwrap();
     let exported = export(&doc);
     assert!(exported.contains("\\qd"), "expected \\qd in: {exported}");
     assert!(exported.contains("\\qj"), "expected \\qj in: {exported}");
+    assert!(exported.contains("\\qt"), "expected \\qt in: {exported}");
 }
 
 #[test]

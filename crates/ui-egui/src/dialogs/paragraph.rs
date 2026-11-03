@@ -10,7 +10,7 @@ pub(super) fn paragraph_dialog(rp: &wordcraft_doc::resolve::ResolvedPara, tab: u
     let unit = crate::options::unit().pt_per_unit();
     Dialog::Paragraph {
         rtl: rp.bidi,
-        align: format!("{:?}", rp.align.visual(rp.bidi)).to_lowercase(),
+        align: align_value(rp.align.visual(rp.bidi)).to_string(),
         left: vl / unit,
         right: vr / unit,
         first: rp.indent_first / unit,
@@ -26,6 +26,19 @@ pub(super) fn paragraph_dialog(rp: &wordcraft_doc::resolve::ResolvedPara, tab: u
         opts: [rp.mirror_indents, rp.contextual_spacing, rp.suppress_line_numbers, rp.suppress_hyphens],
         start: serde_json::Map::new(),
         mixed: BTreeSet::new(),
+    }
+}
+
+/// An alignment as the dialog's Alignment box and `para.set`'s `onPage` name it.
+fn align_value(a: wordcraft_doc::props::Align) -> &'static str {
+    use wordcraft_doc::props::Align;
+    match a {
+        Align::Left => "left",
+        Align::Center => "center",
+        Align::Right => "right",
+        Align::Justify => "justify",
+        Align::Distribute => "distribute",
+        Align::ThaiDistribute => "thaiDistribute",
     }
 }
 

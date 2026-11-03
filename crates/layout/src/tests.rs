@@ -5319,6 +5319,77 @@ fn justified_line_ending_in_line_break_is_stretched() {
     assert!(kept[0] < 400.0, "doNotExpandShiftReturn keeps the line before the break short: {}", kept[0]);
 }
 
+/// Thai puts no spaces between words, so Justify puts a Thai line's whole slack into its one or
+/// two spaces. Thai Distributed shares the slack evenly between the characters and, as Justify
+/// does, leaves the paragraph's last line short; Distributed stretches the last line too. A
+/// tone mark drawn apart from its consonant (another colour) stays on it. Clusters don't depend
+/// on the installed fonts.
+#[test]
+fn thai_distributed_shares_the_slack_between_characters() {
+    let text = "ภาษาไทยเขียนติดกันโดยไม่เว้นวรรค ".repeat(9);
+    let mark = text.find('\u{0E48}').unwrap();
+    let laid = |align: Align| {
+        let mut p = wordcraft_doc::Paragraph::new();
+        p.text = text.clone();
+        let red = wordcraft_doc::CharProps { color: Some(wordcraft_doc::TextColor::Rgb(wordcraft_doc::props::Rgb(200, 0, 0))), ..Default::default() };
+        p.runs = vec![
+            wordcraft_doc::Run { len: mark, props: Default::default() },
+            wordcraft_doc::Run { len: 3, props: red },
+            wordcraft_doc::Run { len: text.len() - mark - 3, props: Default::default() },
+        ];
+        p.props = ParaProps { align: Some(align), ..Default::default() };
+        let mut d = Document::from_text("");
+        d.body = vec![wordcraft_doc::para_block(p)];
+        let l = lay(&d);
+        l.pages[0].items.iter().find_map(|it| if let Placed::Lines { para, x, .. } = it { Some((para.clone(), *x)) } else { None }).unwrap()
+    };
+    // Where each line's last character ends on the page (its trailing spaces hang past it).
+    let ends = |(pl, x): &(Arc<ParaLayout>, f32)| -> Vec<f32> {
+        pl.lines
+            .iter()
+            .map(|line| {
+                let content = line.start + text[line.start..line.stop].trim_end().len();
+                let k = (line.c0..line.c1).rev().find(|&k| pl.clusters[k].start < content).unwrap();
+                line.xs[k - line.c0] + pl.clusters[k].adv + x
+            })
+            .collect()
+    };
+    let left = ends(&laid(Align::Left));
+    assert!(left.len() >= 3 && *left.last().unwrap() < 500.0, "a few lines, the last one short: {left:?}");
+
+    let thai = laid(Align::ThaiDistribute);
+    let thai_ends = ends(&thai);
+    assert_eq!(thai_ends.len(), left.len(), "the lines break where left-aligned ones do");
+    for e in &thai_ends[..thai_ends.len() - 1] {
+        assert!((e - 540.0).abs() < 0.05, "Thai Distributed line ends at {e}, not the margin: {thai_ends:?}");
+    }
+    assert!((thai_ends.last().unwrap() - left.last().unwrap()).abs() < 0.05, "the last line stays short: {thai_ends:?}");
+
+    // The first line's gaps: one share before each character, none inside one.
+    let (pl, line) = (&thai.0, &thai.0.lines[0]);
+    let content = line.start + text[line.start..line.stop].trim_end().len();
+    let mut shares = Vec::new();
+    for k in line.c0 + 1..line.c1 {
+        let c = &pl.clusters[k];
+        if c.start >= content {
+            break;
+        }
+        let gap = line.xs[k - line.c0] - line.xs[k - 1 - line.c0] - pl.clusters[k - 1].adv;
+        if c.start == mark {
+            assert!(gap.abs() < 0.01, "a gap of {gap} opens between the consonant and its red tone mark");
+        } else {
+            shares.push(gap);
+        }
+    }
+    let (lo, hi) = shares.iter().fold((f32::MAX, f32::MIN), |(a, b), g| (a.min(*g), b.max(*g)));
+    assert!(lo > 0.1 && hi - lo < 0.01, "uneven gaps between characters: {lo} to {hi}");
+
+    // Distributed: every line reaches the margin, the last one too.
+    for e in ends(&laid(Align::Distribute)) {
+        assert!((e - 540.0).abs() < 0.05, "Distributed line ends at {e}");
+    }
+}
+
 #[test]
 fn lines_with_tabs_never_shrink() {
     let text = "Item\tWe tie the spend to a pipe and to the books, so it is in an ad hoc view of all of it. ".repeat(30);

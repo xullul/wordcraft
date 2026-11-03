@@ -51,6 +51,44 @@ pub(super) fn shrink_line_spaces(pl: &ParaLayout, xs: &mut [f32], c0: usize, c1:
     }
 }
 
+/// Stretch the line to its right edge by `slack` shared evenly between its characters
+/// (Distributed, Thai Distributed): each gap between two characters after the last tab widens
+/// by the same amount, the spaces' gaps included. A gap never opens inside a character, so a
+/// Thai consonant keeps its vowel and tone marks even when another font or formatting draws
+/// them, nor inside a ligature, nor beside what takes no room (bookmarks, soft hyphens).
+/// Trailing spaces hang and follow the text.
+pub(super) fn distribute_line(pl: &ParaLayout, xs: &mut [f32], (c0, c1, align_from): (usize, usize, usize), content_end: f32, slack: f32) {
+    // Clusters that start a character of the line's content: a gap may open before them.
+    let starts = |k: usize| {
+        pl.clusters.get(k).is_some_and(|c| {
+            let drawn_before = c.kind == ClKind::Text && c.g1 <= c.g0;
+            c.kind != ClKind::Marker && !drawn_before && pl.is_edit_boundary(c.start)
+        }) && xs.get(k - c0).is_some_and(|&x| x < content_end - 0.01)
+    };
+    let mut gaps: Vec<usize> = (align_from..c1).filter(|&k| starts(k)).collect();
+    // No gap before the first character.
+    if !gaps.is_empty() {
+        gaps.remove(0);
+    }
+    if gaps.is_empty() || !slack.is_finite() {
+        return;
+    }
+    let per = slack / gaps.len() as f32;
+    let mut add = 0.0;
+    let mut next = gaps.iter().peekable();
+    for k in align_from..c1 {
+        if next.next_if(|&&g| g == k).is_some() {
+            add += per;
+        }
+        if let Some(v) = xs.get_mut(k - c0) {
+            *v += add;
+        }
+    }
+    if let Some(v) = xs.last_mut() {
+        *v += add;
+    }
+}
+
 /// The hyphen glyph and advance in a style (cached per paragraph).
 pub(super) fn hyphen_glyph(pl: &ParaLayout, style: u32, cache: &mut Vec<(u32, u32, f32)>) -> (u32, u32, f32) {
     if let Some(h) = cache.iter().find(|h| h.0 == style) {

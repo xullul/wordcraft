@@ -24,6 +24,8 @@ fn align_css(a: Option<Align>) -> Option<&'static str> {
         Align::Center => Some("text-align:center"),
         Align::Right => Some("text-align:right"),
         Align::Justify | Align::Distribute => Some("text-align:justify"),
+        // Justified by space between the characters (CSS Text 3 `text-justify`).
+        Align::ThaiDistribute => Some("text-align:justify;text-justify:inter-character"),
         Align::Left => None,
     }
 }

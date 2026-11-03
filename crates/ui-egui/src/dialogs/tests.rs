@@ -604,6 +604,21 @@ fn paragraph_dialog_shows_direction_and_visual_alignment() {
     assert_eq!((left, right), (0.0, 0.5), "the start indent is the right one");
 }
 
+/// Thai Distributed is one of the Alignment box's values: picked there it sets the paragraph,
+/// and a paragraph that has it shows it there.
+#[test]
+fn paragraph_dialog_sets_and_shows_thai_distributed() {
+    let mut app = app_with("ภาษาไทย");
+    ok_edit(&mut app, |d| {
+        if let Dialog::Paragraph { align, .. } = d {
+            *align = "thaiDistribute".into();
+        }
+    });
+    assert_eq!(props(&app).align, Some(Align::ThaiDistribute));
+    let Some(Dialog::Paragraph { align, .. }) = Dialog::open("paragraph", &mut app) else { panic!("no paragraph dialog") };
+    assert_eq!(align, "thaiDistribute");
+}
+
 #[test]
 fn paragraph_dialog_ok_keeps_what_it_shows() {
     for (rtl, align) in [(false, "para.alignCenter"), (false, "para.alignRight"), (true, "para.alignLeft"), (true, "para.alignRight")] {

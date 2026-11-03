@@ -10,7 +10,14 @@ pub enum Align {
     Center,
     Right,
     Justify,
+    /// Every line, the last included, stretched to both edges by space between its characters
+    /// (East Asian Distributed, ISO 29500 `distribute`).
     Distribute,
+    /// Thai Distributed (ISO 29500 `thaiDistribute`): lines stretched like justified ones, the
+    /// last line of the paragraph left at its start edge, but by space between the characters
+    /// rather than at the spaces alone. Thai puts no spaces between words, so a justified Thai
+    /// line puts its whole slack into its one or two spaces.
+    ThaiDistribute,
 }
 
 impl Align {

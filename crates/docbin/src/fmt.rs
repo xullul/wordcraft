@@ -339,6 +339,8 @@ pub(crate) fn apply_para(p: &mut ParaProps, prl: &Prl) {
                 2 => Some(Align::Right),
                 3 => Some(Align::Justify),
                 4 => Some(Align::Distribute),
+                // [MS-DOC] sprmPJc: 9 is Thai Distributed.
+                9 => Some(Align::ThaiDistribute),
                 _ => Some(Align::Left),
             };
         }
