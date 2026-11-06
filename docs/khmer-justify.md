@@ -1,6 +1,6 @@
 # Khmer Justify and Thai Distributed
 
-Status: first version. Revision history at the end.
+Status: reviewed 2026-11-06 (binary `.doc` import). Revision history at the end.
 
 Two paragraph alignments for scripts written without spaces between words:
 
@@ -9,7 +9,7 @@ Two paragraph alignments for scripts written without spaces between words:
 | Thai Distributed | `para.thaiDistribute` | `<w:jc w:val="thaiDistribute"/>` | Word-compatible. A wrapped line's spare room is shared **evenly** between the character clusters of Thai and Khmer text (and spaces). Last line stays at the start edge. |
 | Khmer Justify | `para.khmerJustify` (`Mod+Alt+J`) | `<w:jc w:val="thaiDistribute" wc:khmer="1"/>` | WordCraft's own. Spare room is shared **by rank**: phrase spaces, then word boundaries, then orthographic syllables, each up to a cap; never inside a syllable. |
 
-Both are `Align` variants in `crates/doc/src/props.rs` (`ThaiDistribute`, `KhmerJustify`).
+Both are `Align` variants in `crates/doc/src/props/para_props.rs` (`ThaiDistribute`, `KhmerJustify`).
 
 ## File format
 
@@ -23,6 +23,7 @@ paragraph alignment (shown when a complex-script/Thai editing language is enable
   paragraph. The mark is in namespace `urn:wordcraft:ext` (`wc`), declared on every body part and
   listed in `mc:Ignorable`, so Word skips it.
 - RTF writes `\qt` (Thai distributed) for both and reads it back as Thai Distributed. ODT and HTML write plain justification.
+- Binary `.doc` reads `sprmPJc` value 9 as Thai Distributed ([MS-DOC] §2.6.2); it was read as Left.
 
 What was **not** verified: how Word itself spaces Khmer under Thai Distributed (no Khmer-enabled
 Word was driven). The even distribution is built from the documented effect; compare against Word
@@ -120,11 +121,13 @@ break itself take no room.
 ## Tests
 
 `doc::khmer`, `doc::thai`, `layout::khmer_just`, `layout/tests/khmer.rs` (filling, no stretch
-inside a syllable, rank order, ZWSP, Latin text), `docx/tests/roundtrip.rs`
-(`thai_distributed_and_khmer_justify_stay_apart`), `docx::read::props::khmer_tests`.
+inside a syllable, rank order, ZWSP, Latin text), `docx/tests/it/roundtrip.rs`
+(`thai_distributed_and_khmer_justify_stay_apart`), `docx::read::props::khmer_tests`, and
+`docbin::tests::thai_distributed_paragraph_alignment_is_imported`.
 
 ## Revision history
 
 - First version: alignments, docx mapping, tiered distribution, ZWSP handling, font study.
 - Spaces before a line's first character keep their width (found by @pakiat against Word).
 - Review fixes: punctuation next to Khmer is not a gap; anchors between syllables keep their gap; leading Thai vowels get a gap; RTF `\qt`; word joiner and U+FEFF are invisible.
+- 2026-11-06: binary `.doc` reads `sprmPJc` 9 as Thai Distributed; source and test paths corrected.
